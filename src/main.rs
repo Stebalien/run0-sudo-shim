@@ -1,3 +1,4 @@
+use std::ffi::{OsStr, OsString};
 use std::os::unix::process::CommandExt;
 use std::path::PathBuf;
 
@@ -21,7 +22,7 @@ impl ShellArgs {
 }
 
 #[derive(Parser, Debug)]
-#[command(version)]
+#[command(version, about)]
 struct SudoArgs {
     #[arg(short = 'A', long)]
     askpass: bool,
@@ -32,13 +33,13 @@ struct SudoArgs {
     #[arg(short = 'b', long)]
     background: bool,
 
-    #[arg(short = 'C', long, default_value = "3")]
+    #[arg(short = 'C', long, default_value = "3", value_name = "FD")]
     close_from: u64,
 
     #[arg(short = 'E')]
     preserve_all_env: bool,
 
-    #[arg(long, require_equals = true)]
+    #[arg(long, action = clap::ArgAction::Append, value_name = "VAR")]
     preserve_env: Vec<String>,
 
     #[arg(short, long)]
@@ -97,8 +98,6 @@ struct SudoArgs {
 
     #[command(flatten)]
     shell: ShellArgs,
-
-    command: Vec<String>,
 }
 
 macro_rules! exit {
@@ -112,7 +111,23 @@ fn main() {
     let mut cmd = std::process::Command::new("run0");
     cmd.arg("--background=");
 
-    let args = SudoArgs::parse();
+    let mut raw_args = std::env::args_os().peekable();
+    let arg0 = raw_args.next().unwrap_or_else(|| OsString::from("sudo"));
+    let args = SudoArgs::parse_from(
+        std::iter::once(arg0).chain(
+            std::iter::from_fn(|| {
+                raw_args.next_if(|s| {
+                    let prefix = OsStr::new("-");
+                    s.as_encoded_bytes().starts_with(prefix.as_encoded_bytes())
+                })
+            })
+            .take_while(|s| s != "--"),
+        ),
+    );
+
+    let Ok(command): Result<Vec<String>, _> = raw_args.map(|a| a.into_string()).collect() else {
+        exit!("failed to parse arguments as utf8");
+    };
 
     // Unsupported/validation
 
@@ -215,11 +230,11 @@ fn main() {
     cmd.arg("--");
 
     if args.shell.no_shell() {
-        if args.command.is_empty() {
+        if command.is_empty() {
             exit!("must specify --login, --shell, or a COMMAND")
         }
 
-        cmd.args(args.command);
+        cmd.args(command);
     } else {
         let Some(user_shell) = (if args.shell.login {
             args.user
@@ -242,8 +257,8 @@ fn main() {
             cmd.arg("--login");
         }
 
-        if !args.command.is_empty() {
-            cmd.arg("-c").arg(shell_escape(&args.command));
+        if !command.is_empty() {
+            cmd.arg("-c").arg(shell_escape(&command));
         }
     }
 
