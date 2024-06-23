@@ -1,0 +1,12 @@
+[package]
+name = "run0-sudo-shim"
+version = "0.1.0"
+edition = "2021"
+
+[[bin]]
+name = "sudo"
+path = "src/main.rs"
+
+[dependencies]
+clap = { version = "4.5.7", default-features = false, features = ["derive", "std", "help"] }
+users = { version = "0.11.0", default-features = false }
