@@ -35,8 +35,11 @@ struct SudoArgs {
     #[arg(short = 'C', long, default_value = "3")]
     close_from: u64,
 
-    #[arg(short = 'E', long)]
-    preserve_env: Option<Vec<String>>,
+    #[arg(short = 'E')]
+    preserve_all_env: bool,
+
+    #[arg(long, require_equals = true)]
+    preserve_env: Vec<String>,
 
     #[arg(short, long)]
     edit: bool,
@@ -156,6 +159,10 @@ fn main() {
         exit!("cannot validate credentials")
     }
 
+    if args.preserve_all_env {
+        exit!("you may not preserve the entire environment, you cretin!")
+    }
+
     // Unimplemented
 
     if args.background {
@@ -180,13 +187,8 @@ fn main() {
         cmd.arg("-D").arg(dir);
     }
 
-    if let Some(env) = &args.preserve_env {
-        if env.is_empty() {
-            exit!("you may not preserve the entire environment, you cretin!")
-        }
-        for var in env {
-            cmd.arg(format!("--setenv={var}"));
-        }
+    for var in &args.preserve_env {
+        cmd.arg(format!("--setenv={var}"));
     }
 
     // XXX: parse GID/UID!
