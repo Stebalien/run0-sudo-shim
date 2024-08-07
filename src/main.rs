@@ -39,7 +39,7 @@ struct SudoArgs {
     #[arg(short = 'E')]
     preserve_all_env: bool,
 
-    #[arg(long, action = clap::ArgAction::Append, value_name = "VAR")]
+    #[arg(long, action = clap::ArgAction::Append, value_name = "VAR", value_delimiter=',')]
     preserve_env: Vec<String>,
 
     #[arg(short, long)]
